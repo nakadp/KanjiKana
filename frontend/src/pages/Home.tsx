@@ -1,4 +1,4 @@
-import { Camera, Image as ImageIcon, BookOpen, Loader2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, BookOpen, Loader2, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useRef, useState } from 'react';
@@ -17,8 +17,8 @@ export default function Home() {
     formData.append('image', file);
 
     try {
-      // Assuming backend runs on 3001 locally, or use a relative path if proxied
-      const res = await fetch('http://localhost:3001/api/analyze', {
+      // 通过 Vite 代理发送请求，这样在手机上通过 ngrok 访问时才不会因为 localhost 找不到后端
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         body: formData,
       });
@@ -73,12 +73,27 @@ export default function Home() {
         <motion.button 
           whileTap={{ scale: 0.95 }}
           className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-green-300 transition-colors"
-          onClick={() => navigate('/reader')}
+          onClick={() => {
+            const liff = (window as any).liff;
+            if (liff && liff.scanCodeV2) {
+              liff.scanCodeV2().then((result: any) => {
+                if (result && result.value) {
+                  alert('扫码结果: ' + result.value);
+                  // TODO: 这里可以根据你的业务需求处理扫码结果，比如如果是网址可以跳转，如果是文字可以送去后台注音
+                }
+              }).catch((err: any) => {
+                // 用户取消扫码或扫码失败
+                console.log('Scan failed:', err);
+              });
+            } else {
+              alert('请在 LINE 客户端中打开小程序以使用扫码功能。');
+            }
+          }}
         >
           <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3">
-            <ImageIcon size={24} />
+            <QrCode size={24} />
           </div>
-          <span className="font-semibold text-gray-700">相册上传</span>
+          <span className="font-semibold text-gray-700">扫二维码</span>
         </motion.button>
       </div>
 
