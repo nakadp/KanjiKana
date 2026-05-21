@@ -1,13 +1,49 @@
-import { useState, type MouseEvent } from 'react';
+import { useState, useEffect, type MouseEvent } from 'react';
 import { ArrowLeft, Eye, EyeOff, Star } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUser } from '../UserContext';
 
 export default function Reader() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showRomaji, setShowRomaji] = useState(true);
   const [selectedWord, setSelectedWord] = useState<any>(null);
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const { userId } = useUser();
+
+  useEffect(() => {
+    if (userId) {
+      fetch(`/api/favorites?userId=${userId}`)
+        .then(res => res.json())
+        .then(data => setFavorites(data))
+        .catch(err => console.error('Failed to fetch favorites', err));
+    }
+  }, [userId]);
+
+  const handleToggleFavorite = async () => {
+    if (!selectedWord || !userId) return;
+    
+    // Optimistic UI update
+    const isFavorited = favorites.some(f => f.kanji === selectedWord.kanji);
+    let newFavorites;
+    if (isFavorited) {
+      newFavorites = favorites.filter(f => f.kanji !== selectedWord.kanji);
+    } else {
+      newFavorites = [...favorites, { ...selectedWord, addedAt: Date.now() }];
+    }
+    setFavorites(newFavorites);
+
+    try {
+      await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, word: selectedWord })
+      });
+    } catch (err) {
+      console.error('Failed to save favorite', err);
+    }
+  };
 
   // Get HTML from routing state, or fallback to mock
   const htmlContent = location.state?.html || `
@@ -33,6 +69,8 @@ export default function Reader() {
       setSelectedWord(null);
     }
   };
+
+  const isFavorited = selectedWord ? favorites.some(f => f.kanji === selectedWord.kanji) : false;
 
   return (
     <div className="flex flex-col h-[calc(100vh-60px)]">
@@ -91,9 +129,12 @@ export default function Reader() {
                 </div>
               </div>
 
-              <button className="w-full py-4 bg-[var(--color-primary)] text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-green-200 active:scale-95 transition-transform">
+              <button 
+                onClick={handleToggleFavorite}
+                className={`w-full py-4 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform ${isFavorited ? 'bg-yellow-400 shadow-yellow-200' : 'bg-[var(--color-primary)] shadow-green-200'}`}
+              >
                 <Star size={24} fill="white" />
-                加入收藏
+                {isFavorited ? '取消收藏' : '加入收藏'}
               </button>
             </motion.div>
           </>

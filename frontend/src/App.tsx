@@ -1,34 +1,11 @@
-import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Reader from './pages/Reader';
 import Vocab from './pages/Vocab';
+import { UserProvider, useUser } from './UserContext';
 
-function App() {
-  const [liffError, setLiffError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<any>(null);
-
-  useEffect(() => {
-    // 開発用 LIFF ID as per LIFF_ID.md
-    const liffId = import.meta.env.VITE_LIFF_ID || "2010149887-XfijU5UN";
-    const liff = (window as any).liff;
-    
-    if (liff) {
-      liff.init({ liffId })
-        .then(() => {
-          if (liff.isLoggedIn()) {
-            liff.getProfile().then((p: any) => {
-              setProfile(p);
-            }).catch((err: any) => setLiffError(err.toString()));
-          }
-        })
-        .catch((err: Error) => {
-          setLiffError(err.toString());
-        });
-    } else {
-      setLiffError("LIFF SDK not loaded from script tag");
-    }
-  }, []);
+function AppContent() {
+  const { profile, liffError } = useUser();
 
   return (
     <BrowserRouter>
@@ -36,7 +13,7 @@ function App() {
         {/* Simple Top Navigation / Header */}
         <header className="bg-white shadow-sm sticky top-0 z-10 px-4 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-[var(--color-primary)]">KanjiKana</h1>
-          {profile && (
+          {profile && profile.pictureUrl && (
             <img 
               src={profile.pictureUrl} 
               alt="Profile" 
@@ -63,4 +40,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <UserProvider>
+      <AppContent />
+    </UserProvider>
+  );
+}

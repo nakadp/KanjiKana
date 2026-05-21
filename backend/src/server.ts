@@ -4,6 +4,31 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import { createWorker } from 'tesseract.js';
 import { initAnalyzer, analyzeText } from './analyzer';
+import fs from 'fs/promises';
+import path from 'path';
+
+const FAVORITES_FILE = path.join(__dirname, '..', 'data', 'favorites.json');
+
+async function ensureDataDir() {
+  const dir = path.dirname(FAVORITES_FILE);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+  } catch (err) {}
+}
+
+async function getFavoritesData() {
+  try {
+    const data = await fs.readFile(FAVORITES_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch (err) {
+    return {};
+  }
+}
+
+async function saveFavoritesData(data: any) {
+  await ensureDataDir();
+  await fs.writeFile(FAVORITES_FILE, JSON.stringify(data, null, 2), 'utf-8');
+}
 
 dotenv.config();
 
@@ -49,6 +74,34 @@ app.post('/api/analyze', upload.single('image'), async (req, res) => {
     console.error('Error analyzing text:', error);
     res.status(500).json({ error: 'Failed to analyze text' });
   }
+});
+
+app.get('/api/favorites', async (req, res) => {
+  const userId = req.query.userId as string;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const data = await getFavoritesData();
+  res.json(data[userId] || []);
+});
+
+app.post('/api/favorites', async (req, res) => {
+  const { userId, word } = req.body;
+  if (!userId || !word) return res.status(400).json({ error: 'userId and word required' });
+  
+  const data = await getFavoritesData();
+  const userFavorites = data[userId] || [];
+  
+  const isFavorited = userFavorites.some((f: any) => f.kanji === word.kanji);
+  let newFavorites;
+  if (isFavorited) {
+    newFavorites = userFavorites.filter((f: any) => f.kanji !== word.kanji);
+  } else {
+    newFavorites = [...userFavorites, { ...word, addedAt: Date.now() }];
+  }
+  
+  data[userId] = newFavorites;
+  await saveFavoritesData(data);
+  
+  res.json({ success: true, favorites: newFavorites });
 });
 
 // Initialize kuromoji before starting the server

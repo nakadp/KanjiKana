@@ -1,15 +1,30 @@
-import { ArrowLeft, Book, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Book, ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useUser } from '../UserContext';
 
 export default function Vocab() {
   const navigate = useNavigate();
+  const { userId } = useUser();
+  const [vocabList, setVocabList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for vocab
-  const vocabList = [
-    { kanji: '勉強', reading: 'べんきょう', meaning: '学习，用功' },
-    { kanji: '図書館', reading: 'としょかん', meaning: '图书馆' },
-    { kanji: '明日', reading: 'あした', meaning: '明天' },
-  ];
+  useEffect(() => {
+    if (userId) {
+      fetch(`/api/favorites?userId=${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          setVocabList(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Failed to fetch vocab list', err);
+          setLoading(false);
+        });
+    } else {
+      setLoading(false);
+    }
+  }, [userId]);
 
   return (
     <div className="flex flex-col h-screen bg-[var(--color-bg)]">
@@ -28,17 +43,27 @@ export default function Vocab() {
         </div>
 
         <div className="flex flex-col gap-3">
-          {vocabList.map((word, idx) => (
-            <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between active:bg-gray-50 transition-colors">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800">{word.kanji}</h3>
-                <p className="text-sm text-gray-500 mt-0.5">{word.reading}</p>
-              </div>
-              <div className="flex items-center text-gray-400">
-                <ChevronRight size={20} />
-              </div>
+          {loading ? (
+            <div className="flex justify-center items-center py-12 text-[var(--color-primary)]">
+              <Loader2 className="animate-spin" size={32} />
             </div>
-          ))}
+          ) : vocabList.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">
+              还没有收藏任何单词哦
+            </div>
+          ) : (
+            vocabList.map((word, idx) => (
+              <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between active:bg-gray-50 transition-colors">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">{word.kanji}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{word.reading}</p>
+                </div>
+                <div className="flex items-center text-gray-400">
+                  <ChevronRight size={20} />
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
