@@ -1,12 +1,49 @@
-import { Camera, Image as ImageIcon, BookOpen, Loader2, QrCode } from 'lucide-react';
+import { Camera, Image as ImageIcon, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+
+interface HistoryItem {
+  id: string;
+  timestamp: number;
+  preview: string;
+  html: string;
+}
 
 export default function Home() {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRefCamera = useRef<HTMLInputElement>(null);
+  const fileInputRefUpload = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('kanjikana_history');
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse history', e);
+      }
+    }
+  }, []);
+
+  const saveToHistory = (html: string) => {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    const previewText = temp.textContent || temp.innerText || '解析结果';
+    
+    const newItem: HistoryItem = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      preview: previewText.substring(0, 30).trim() + '...',
+      html: html
+    };
+    
+    const newHistory = [newItem, ...history].slice(0, 20);
+    setHistory(newHistory);
+    localStorage.setItem('kanjikana_history', JSON.stringify(newHistory));
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -27,6 +64,7 @@ export default function Home() {
       setIsUploading(false);
       
       if (res.ok) {
+        saveToHistory(data.html);
         navigate('/reader', { state: { html: data.html } });
       } else {
         alert('解析失败: ' + (data.error || 'Unknown error'));
@@ -47,8 +85,16 @@ export default function Home() {
       <input 
         type="file" 
         accept="image/*" 
+        capture="environment"
         className="hidden" 
-        ref={fileInputRef} 
+        ref={fileInputRefCamera} 
+        onChange={handleFileChange}
+      />
+      <input 
+        type="file" 
+        accept="image/*" 
+        className="hidden" 
+        ref={fileInputRefUpload} 
         onChange={handleFileChange}
       />
 
@@ -58,42 +104,27 @@ export default function Home() {
           disabled={isUploading}
           className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-green-300 transition-colors"
           onClick={() => {
-            // For camera, could specify capture="environment" on a separate input
-            fileInputRef.current?.click();
+            fileInputRefCamera.current?.click();
           }}
         >
           <div className="w-12 h-12 bg-green-50 text-[var(--color-primary)] rounded-full flex items-center justify-center mb-3">
             {isUploading ? <Loader2 size={24} className="animate-spin" /> : <Camera size={24} />}
           </div>
-          <span className="font-semibold text-gray-700">拍照/相册</span>
+          <span className="font-semibold text-gray-700">拍照</span>
         </motion.button>
-
-        {/* ... remaining unchanged */}
 
         <motion.button 
           whileTap={{ scale: 0.95 }}
+          disabled={isUploading}
           className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border border-gray-100 hover:border-green-300 transition-colors"
           onClick={() => {
-            const liff = (window as any).liff;
-            if (liff && liff.scanCodeV2) {
-              liff.scanCodeV2().then((result: any) => {
-                if (result && result.value) {
-                  alert('扫码结果: ' + result.value);
-                  // TODO: 这里可以根据你的业务需求处理扫码结果，比如如果是网址可以跳转，如果是文字可以送去后台注音
-                }
-              }).catch((err: any) => {
-                // 用户取消扫码或扫码失败
-                console.log('Scan failed:', err);
-              });
-            } else {
-              alert('请在 LINE 客户端中打开小程序以使用扫码功能。');
-            }
+            fileInputRefUpload.current?.click();
           }}
         >
           <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-3">
-            <QrCode size={24} />
+            {isUploading ? <Loader2 size={24} className="animate-spin" /> : <ImageIcon size={24} />}
           </div>
-          <span className="font-semibold text-gray-700">扫二维码</span>
+          <span className="font-semibold text-gray-700">上传图片</span>
         </motion.button>
       </div>
 
@@ -108,12 +139,28 @@ export default function Home() {
           </button>
         </div>
         
-        {/* Placeholder for history */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <div className="text-gray-400 text-center text-sm py-8">
-            暂无历史识别记录
+        {history.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {history.map(item => (
+              <div 
+                key={item.id} 
+                onClick={() => navigate('/reader', { state: { html: item.html } })}
+                className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:border-green-300 transition-colors flex justify-between items-center"
+              >
+                <div className="truncate pr-4 text-gray-700 text-sm font-medium">{item.preview}</div>
+                <div className="text-xs text-gray-400 whitespace-nowrap">
+                  {new Date(item.timestamp).toLocaleDateString()}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div className="text-gray-400 text-center text-sm py-8">
+              暂无历史识别记录
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
